@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-  <arg name="node_name" />
-  <arg name="param_file_name" doc="name of param file, e.g. rover" />
+  <arg name="node_name" default="gps_node"/>
+  <arg name="param_file_name" default="m8u_rover" doc="name of param file, e.g. rover" />
   <arg name="output" default="screen" />
   <arg name="respawn" default="true" />
   <arg name="respawn_delay" default="30" />
@@ -12,7 +12,9 @@
         output="$(arg output)" 
         clear_params="$(arg clear_params)"
         respawn="$(arg respawn)" 
-        respawn_delay="$(arg respawn_delay)">
+        respawn_delay="$(arg respawn_delay)"
+        >
+    <!--launch-prefix="xterm -e gdb -tui (remove this, add a double dash)args"-->
     <rosparam command="load" 
               file="$(find ublox_gps)/config/$(arg param_file_name).yaml" />
   </node>

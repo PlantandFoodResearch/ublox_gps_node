@@ -1069,6 +1069,7 @@ class AdrUdrProduct: public virtual ComponentInterface {
   ublox_msgs::TimTM2 timtm2;
 
   void callbackEsfMEAS(const ublox_msgs::EsfMEAS &m);
+  void callbackEsfRAW(const ublox_msgs::EsfRAW &m);
 };
 
 /**

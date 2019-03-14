@@ -31,7 +31,8 @@
 #include <cmath>
 #include <string>
 #include <sstream>
-
+#include <algorithm>    // std::sort
+#include <vector>       // std::vector
 using namespace ublox_node;
 
 //
@@ -1297,6 +1298,8 @@ void AdrUdrProduct::subscribe() {
   if (enabled["esf_raw"])
     gps.subscribe<ublox_msgs::EsfRAW>(boost::bind(
         publish<ublox_msgs::EsfRAW>, _1, "esfraw"), kSubscribeRate);
+    gps.subscribe<ublox_msgs::EsfRAW>(boost::bind(
+      &AdrUdrProduct::callbackEsfRAW, this, _1), kSubscribeRate);
 
   // Subscribe to ESF Status messages
   nh->param("publish/esf/status", enabled["esf_status"], enabled["esf"]);
@@ -1409,6 +1412,158 @@ void AdrUdrProduct::callbackEsfMEAS(const ublox_msgs::EsfMEAS &m) {
   
   updater->force_update();
 }
+
+void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
+  if (enabled["esf_raw"]) {
+    static ros::Publisher imu_pub = 
+	nh->advertise<sensor_msgs::Imu>("imu_raw", 200);//20?
+    static ros::Publisher time_ref_pub = 
+	nh->advertise<sensor_msgs::TimeReference>("interrupt_time", kROSQueueSize);
+    
+    float deg_per_sec = pow(2, -12);
+    float m_per_sec_sq = pow(2, -10);
+    float deg_c = 1e-2;
+    
+    //loop through nested messages...
+    std::vector<ublox_msgs::EsfRAW_Block> blocks = m.blocks;
+    
+    //assume same time stamps come in neighboring chunks of 7 blocks
+    long deez_times[100];
+    int deez_len = 0;
+    for (int blocks_i=0; blocks_i < blocks.size(); blocks_i+=7){
+        //build index list
+        deez_len=blocks_i/7;
+        deez_times[deez_len]=blocks[blocks_i].sTtag;
+        
+    }
+    deez_len++;
+    std::sort(deez_times,deez_times+deez_len);
+    //build index map from time stamps
+    
+    std::map<long,int> timeMap;//from imu time to imuVector index
+    std::vector<sensor_msgs::Imu> imuVector;
+    
+    int ind = 0;
+    int sec = 0;
+    int nsec = 0;
+    
+    for (int deez_it=0;deez_it<deez_len; ++deez_it){
+        timeMap.insert(std::make_pair(deez_times[deez_it],ind));
+        
+        sensor_msgs::Imu a;
+        imuVector.push_back(a);
+        imuVector[ind].header.stamp = ros::Time::now();
+        
+        sec = (int)deez_times[deez_it]*(1 / 25390.625);//second / tics, seconds on the imu
+        nsec = (deez_times[deez_it]*(1.0 / 25390.625)-sec)*1000000000.0;//nano seconds on the imu
+        imuVector[ind].header.stamp.sec = sec;
+        imuVector[ind].header.stamp.nsec = nsec;
+        
+        imuVector[ind].header.frame_id = frame_id;
+        
+        ind++;
+    }
+    
+    
+    for (int i=0; i < blocks.size(); i++){
+      //test time stamp to determine which sensor messages should be built
+      ind = timeMap[blocks[i].sTtag];
+      imu_=imuVector[ind];
+      unsigned int imu_data = blocks[i].data;
+      unsigned int data_type = imu_data >> 24; //grab the last six bits of data
+      double data_sign = (imu_data & (1 << 23)); //grab the sign (+/-) of the rest of the data
+      unsigned int data_value = imu_data & 0x7FFFFF; //grab the rest of the data...should be 23 bits
+      
+      if (data_sign == 0) {
+        data_sign = -1;
+      } else {
+        data_sign = 1;
+      }
+           
+      //ROS_INFO("data sign (+/-): %f", data_sign); //either 1 or -1....set by bit 23 in the data bitarray
+      
+      //covariance should be from the datasheet for the imu?  -1 in 
+      //first entry means ignore the value, 
+      imu_.orientation_covariance[0] = -1;
+      imu_.linear_acceleration_covariance[0] = -1;
+      imu_.angular_velocity_covariance[0] = -1;
+
+      if (data_type == 14) {
+        if (data_sign == 1) {
+	  imu_.angular_velocity.x = 2048 - data_value * deg_per_sec;
+        } else {
+          imu_.angular_velocity.x = data_sign * data_value * deg_per_sec;
+        }
+      } else if (data_type == 16) {
+        //ROS_INFO("data_sign: %f", data_sign);
+        //ROS_INFO("data_value: %u", data_value * m);
+        if (data_sign == 1) {
+	  imu_.linear_acceleration.x = 8191 - data_value * m_per_sec_sq;
+        } else {
+          imu_.linear_acceleration.x = data_sign * data_value * m_per_sec_sq;
+        }
+      } else if (data_type == 13) {
+        if (data_sign == 1) {
+	  imu_.angular_velocity.y = 2048 - data_value * deg_per_sec;
+        } else {
+          imu_.angular_velocity.y = data_sign * data_value * deg_per_sec;
+        }
+      } else if (data_type == 17) {
+        if (data_sign == 1) {
+	  imu_.linear_acceleration.y = 8191 - data_value * m_per_sec_sq;
+        } else {
+          imu_.linear_acceleration.y = data_sign * data_value * m_per_sec_sq;
+        }
+      } else if (data_type == 5) {
+        if (data_sign == 1) {
+	  imu_.angular_velocity.z = 2048 - data_value * deg_per_sec;
+        } else {
+          imu_.angular_velocity.z = data_sign * data_value * deg_per_sec;
+        }
+      } else if (data_type == 18) {
+        if (data_sign == 1) {
+	  imu_.linear_acceleration.z = 8191 - data_value * m_per_sec_sq;
+        } else {
+          imu_.linear_acceleration.z = data_sign * data_value * m_per_sec_sq;
+        }
+      } else if (data_type == 12) {
+        //ROS_INFO("Temperature in celsius: %f", data_value * deg_c); 
+      } else {
+        ROS_INFO("data_type: %u", data_type);
+        ROS_INFO("data_value: %u", data_value);
+      }
+     
+      // create time ref message and put in the data
+      //t_ref_.header.seq = m.risingEdgeCount;
+      //t_ref_.header.stamp = ros::Time::now();
+      //t_ref_.header.frame_id = frame_id;
+
+      //t_ref_.time_ref = ros::Time((m.wnR * 604800 + m.towMsR / 1000), (m.towMsR % 1000) * 1000000 + m.towSubMsR); 
+    
+      //std::ostringstream src;
+      //src << "TIM" << int(m.ch); 
+      //t_ref_.source = src.str();
+      
+      //imu_ is a reference?  then this isn't needed...
+      imuVector[ind] = imu_;
+      
+
+    }
+     t_ref_.header.stamp = ros::Time::now(); // create a new timestamp
+     t_ref_.header.frame_id = frame_id;
+   
+     time_ref_pub.publish(t_ref_);
+     
+     for (std::vector<sensor_msgs::Imu>::iterator it=imuVector.begin();
+     it!=imuVector.end(); ++it)
+     {
+       imu_pub.publish(*it);
+     }
+     
+  }
+  updater->force_update();
+}
+
 //
 // u-blox High Precision GNSS Reference Station
 //
