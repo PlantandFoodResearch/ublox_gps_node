@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-  <arg name="node_name" default="gps_node"/>
-  <arg name="param_file_name" default="m8u_rover" doc="name of param file, e.g. rover" />
+  <arg name="node_name" default="gps_node_base"/>
+  <arg name="param_file_name" default="c94_m8p_base" doc="name of param file, e.g. rover" />
   <arg name="output" default="screen" />
   <arg name="respawn" default="true" />
   <arg name="respawn_delay" default="30" />

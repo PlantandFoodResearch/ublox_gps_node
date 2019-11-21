@@ -1429,14 +1429,12 @@ void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
     
     //assume same time stamps come in neighboring chunks of 7 blocks
     long deez_times[100];
-    int deez_len = 0;
+    int deez_len = 0;//past-the-end index
     for (int blocks_i=0; blocks_i < blocks.size(); blocks_i+=7){
         //build index list
-        deez_len=blocks_i/7;
         deez_times[deez_len]=blocks[blocks_i].sTtag;
-        
+        deez_len++;//update past the end
     }
-    deez_len++;
     std::sort(deez_times,deez_times+deez_len);
     //build index map from time stamps
     
@@ -1484,9 +1482,9 @@ void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
       
       //covariance should be from the datasheet for the imu?  -1 in 
       //first entry means ignore the value, 
-      imu_.orientation_covariance[0] = -1;
-      imu_.linear_acceleration_covariance[0] = -1;
-      imu_.angular_velocity_covariance[0] = -1;
+      imu_.orientation_covariance[0] = 0;
+      imu_.linear_acceleration_covariance[0] = 0;
+      imu_.angular_velocity_covariance[0] = 0;
 
       if (data_type == 14) {
         if (data_sign == 1) {
