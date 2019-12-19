@@ -1354,9 +1354,9 @@ void AdrUdrProduct::callbackEsfMEAS(const ublox_msgs::EsfMEAS &m) {
         }
       } else if (data_type == 16) {
         //ROS_INFO("data_sign: %f", data_sign);
-        //ROS_INFO("data_value: %u", data_value * m);
+        //ROS_INFO("data_value: %u", data_value);
         if (data_sign == 1) {
-	  imu_.linear_acceleration.x = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.x = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.x = data_sign * data_value * m_per_sec_sq;
         }
@@ -1368,7 +1368,7 @@ void AdrUdrProduct::callbackEsfMEAS(const ublox_msgs::EsfMEAS &m) {
         }
       } else if (data_type == 17) {
         if (data_sign == 1) {
-	  imu_.linear_acceleration.y = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.y = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.y = data_sign * data_value * m_per_sec_sq;
         }
@@ -1380,7 +1380,7 @@ void AdrUdrProduct::callbackEsfMEAS(const ublox_msgs::EsfMEAS &m) {
         }
       } else if (data_type == 18) {
         if (data_sign == 1) {
-	  imu_.linear_acceleration.z = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.z = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.z = data_sign * data_value * m_per_sec_sq;
         }
@@ -1496,7 +1496,7 @@ void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
         //ROS_INFO("data_sign: %f", data_sign);
         //ROS_INFO("data_value: %u", data_value * m);
         if (data_sign == 1) {
-	  imu_.linear_acceleration.x = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.x = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.x = data_sign * data_value * m_per_sec_sq;
         }
@@ -1508,7 +1508,7 @@ void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
         }
       } else if (data_type == 17) {
         if (data_sign == 1) {
-	  imu_.linear_acceleration.y = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.y = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.y = data_sign * data_value * m_per_sec_sq;
         }
@@ -1520,7 +1520,7 @@ void AdrUdrProduct::callbackEsfRAW(const ublox_msgs::EsfRAW &m) {
         }
       } else if (data_type == 18) {
         if (data_sign == 1) {
-	  imu_.linear_acceleration.z = 8191 - data_value * m_per_sec_sq;
+	  imu_.linear_acceleration.z = 8192 - data_value * m_per_sec_sq;
         } else {
           imu_.linear_acceleration.z = data_sign * data_value * m_per_sec_sq;
         }

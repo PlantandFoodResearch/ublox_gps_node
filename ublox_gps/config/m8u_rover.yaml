@@ -11,7 +11,7 @@ save:
                             # Manager, Antenna, and Logging Configuration
   device: 4                 # Save to EEPROM
 
-device: /dev/ttyACM0        #/dev/ttyUSB0 = unpowered usb, /dev/ttyACM0 = serial to radio chip(via powered USB)
+device: /dev/ttyACM1        #/dev/ttyUSB0 = unpowered usb, /dev/ttyACM0 = serial to radio chip(via powered USB)
 frame_id: m8u 
 rate: 1                     # in Hz
 nav_rate: 1                # [# of measurement cycles], recommended 1 Hz, may 
