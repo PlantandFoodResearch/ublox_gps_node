@@ -1,0 +1,15 @@
+<launch>
+    <include file="$(find ublox_gps)/launch/ublox_device_m8u.launch" />
+    
+    <node pkg="robot_localization" type="navsat_transform_node" name="navsat_transform_node" respawn="true">
+
+        <param name="magnetic_declination_radians" value="0"/>
+
+        <param name="yaw_offset" value="0"/>
+
+        <remap from="/imu/data" to="/razor_imu" />
+        <remap from="/gps/fix" to="/gps_node_m8u/fix" />
+        <remap from="/odometry/filtered" to="/odometry/filtered" />
+
+    </node>
+</launch>
