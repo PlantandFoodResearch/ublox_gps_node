@@ -41,6 +41,7 @@
 #include <ros/ros.h>
 #include <ros/console.h>
 #include <ros/serialization.h>
+#include <tf/transform_datatypes.h>
 #include <diagnostic_updater/diagnostic_updater.h>
 #include <diagnostic_updater/publisher.h>
 // ROS messages
@@ -54,6 +55,7 @@
 // Ublox GPS includes
 #include <ublox_gps/gps.h>
 #include <ublox_gps/utils.h>
+#include <ublox_gps/raw_data_pa.h>
 
 // This file declares the ComponentInterface which acts as a high level
 // interface for u-blox firmware, product categories, etc. It contains methods
@@ -120,10 +122,16 @@ uint16_t nav_rate;
 std::vector<uint8_t> rtcm_ids;
 //! Rates of RTCM out messages. Size must be the same as rtcm_ids
 std::vector<uint8_t> rtcm_rates;
+//! Flag for enabling configuration on startup
+bool config_on_startup_flag_;
+
 
 //! Topic diagnostics for u-blox messages
 struct UbloxTopicDiagnostic {
   UbloxTopicDiagnostic() {}
+
+  // Must not copy this struct (would confuse FrequencyStatusParam pointers)
+  UbloxTopicDiagnostic(const UbloxTopicDiagnostic&) = delete;
 
   /**
    * @brief Add a topic diagnostic to the diagnostic updater for
@@ -177,6 +185,9 @@ struct UbloxTopicDiagnostic {
 struct FixDiagnostic {
   FixDiagnostic() {}
 
+  // Must not copy this struct (would confuse FrequencyStatusParam pointers)
+  FixDiagnostic(const FixDiagnostic&) = delete;
+
   /**
    * @brief Add a topic diagnostic to the diagnostic updater for fix topics.
    *
@@ -210,7 +221,7 @@ struct FixDiagnostic {
 };
 
 //! fix frequency diagnostic updater
-FixDiagnostic freq_diag;
+boost::shared_ptr<FixDiagnostic> freq_diag;
 
 /**
  * @brief Determine dynamic model from human-readable string.
@@ -636,6 +647,9 @@ class UbloxNode : public virtual ComponentInterface {
   ublox_msgs::CfgCFG save_;
   //! rate for TIM-TM2
   uint8_t tim_rate_;
+
+  //! raw data stream logging
+  RawDataStreamPa rawDataStreamPa_;
 };
 
 /**
@@ -772,8 +786,17 @@ class UbloxFirmware7Plus : public UbloxFirmware {
     if (((m.valid & valid_time) == valid_time) &&
         (m.flags2 & m.FLAGS2_CONFIRMED_AVAILABLE)) {
       // Use NavPVT timestamp since it is valid
-      fix.header.stamp.sec = toUtcSeconds(m);
-      fix.header.stamp.nsec = m.nano;
+      // The time in nanoseconds from the NavPVT message can be between -1e9 and 1e9
+      //  The ros time uses only unsigned values, so a negative nano seconds must be
+      //  converted to a positive value
+      if (m.nano < 0) {
+        fix.header.stamp.sec = toUtcSeconds(m) - 1;
+        fix.header.stamp.nsec = (uint32_t)(m.nano + 1e9);
+      }
+      else {
+        fix.header.stamp.sec = toUtcSeconds(m);
+        fix.header.stamp.nsec = (uint32_t)(m.nano);
+      }
     } else {
       // Use ROS time since NavPVT timestamp is not valid
       fix.header.stamp = ros::Time::now();
@@ -834,7 +857,7 @@ class UbloxFirmware7Plus : public UbloxFirmware {
     // Update diagnostics
     //
     last_nav_pvt_ = m;
-    freq_diag.diagnostic->tick(fix.header.stamp);
+    freq_diag->diagnostic->tick(fix.header.stamp);
     updater->update();
   }
 
@@ -987,6 +1010,14 @@ class UbloxFirmware8 : public UbloxFirmware7Plus<ublox_msgs::NavPVT> {
 };
 
 /**
+ *  @brief Implements functions for firmware version 9.
+ *  For now it simply re-uses the firmware version 8 class
+ *  but allows for future expansion of functionality
+ */
+class UbloxFirmware9 : public UbloxFirmware8 {
+};
+
+/**
  * @brief Implements functions for Raw Data products.
  */
 class RawDataProduct: public virtual ComponentInterface {
@@ -1019,7 +1050,7 @@ class RawDataProduct: public virtual ComponentInterface {
 
  private:
   //! Topic diagnostic updaters
-  std::vector<UbloxTopicDiagnostic> freq_diagnostics_;
+  std::vector<boost::shared_ptr<UbloxTopicDiagnostic> > freq_diagnostics_;
 };
 
 /**
@@ -1280,6 +1311,28 @@ class HpgRovProduct: public virtual ComponentInterface {
 
   //! The RTCM topic frequency diagnostic updater
   UbloxTopicDiagnostic freq_rtcm_;
+};
+
+class HpPosRecProduct: public virtual HpgRefProduct {
+ public:
+  /**
+   * @brief Subscribe to Rover messages, such as NavRELPOSNED.
+   */
+  void subscribe();
+
+ protected:
+
+  /**
+   * @brief Set the last received message and call rover diagnostic updater
+   *
+   * @details Publish received NavRELPOSNED messages if enabled
+   */
+  void callbackNavRelPosNed(const ublox_msgs::NavRELPOSNED9 &m);
+
+  sensor_msgs::Imu imu_;
+
+  //! Last relative position (used for diagnostic updater)
+  ublox_msgs::NavRELPOSNED9 last_rel_pos_;
 };
 
 /**
